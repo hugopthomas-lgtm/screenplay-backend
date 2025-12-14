@@ -1,30 +1,33 @@
 """
 Screenplay Editor Backend
-FastAPI server for FDX export and Text-to-Speech
+FastAPI server for FDX export, Text-to-Speech, and Scene Board AI
 """
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import Response, HTMLResponse
 from pydantic import BaseModel
 from typing import List, Optional
-import io
 import os
+import httpx
 
 app = FastAPI(
     title="Screenplay Editor API",
-    description="Backend for Screenplay Editor - FDX export & TTS",
-    version="1.0.0"
+    description="Backend for Screenplay Editor - FDX export, TTS & Scene Board AI",
+    version="2.0.0"
 )
 
 # CORS - autoriser les appels depuis Google Apps Script et l'extension Chrome
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # En prod, restreindre aux domaines Google
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# API Key Anthropic
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 
 
 # ============================================
@@ -49,8 +52,8 @@ class TTSRequest(BaseModel):
 
 class Character(BaseModel):
     name: str
-    gender: Optional[str] = None  # male, female, neutral
-    age: Optional[str] = None     # young, adult, old
+    gender: Optional[str] = None
+    age: Optional[str] = None
     voice_id: Optional[str] = None
 
 
@@ -58,6 +61,23 @@ class TTSRequestAdvanced(BaseModel):
     title: str
     elements: List[ScriptElement]
     characters: Optional[List[Character]] = None
+
+
+class Scene(BaseModel):
+    id: int
+    heading: str
+    content: str  # Tout le contenu de la scène (action, dialogue, etc.)
+
+
+class SceneBoardRequest(BaseModel):
+    title: str
+    scenes: List[Scene]
+    language: Optional[str] = "en"  # "en" ou "fr"
+
+
+class ReorderRequest(BaseModel):
+    title: str
+    scene_order: List[int]  # Liste des IDs dans le nouvel ordre
 
 
 # ============================================
@@ -79,7 +99,6 @@ def escape_xml(text: str) -> str:
 def generate_fdx(title: str, elements: List[ScriptElement]) -> str:
     """Génère un fichier FDX (Final Draft XML)"""
     
-    # Mapping des types internes vers FDX
     type_mapping = {
         "SCENE_HEADING": "Scene Heading",
         "ACTION": "Action",
@@ -112,14 +131,9 @@ def generate_fdx(title: str, elements: List[ScriptElement]) -> str:
 
 @app.post("/export/fdx")
 async def export_fdx(request: ExportFDXRequest):
-    """
-    Exporte un scénario au format FDX (Final Draft)
-    
-    Retourne le fichier XML directement
-    """
+    """Exporte un scénario au format FDX (Final Draft)"""
     try:
         fdx_content = generate_fdx(request.title, request.elements)
-        
         filename = f"{request.title.replace(' ', '_')}.fdx"
         
         return Response(
@@ -135,10 +149,7 @@ async def export_fdx(request: ExportFDXRequest):
 
 @app.post("/export/fdx/json")
 async def export_fdx_json(request: ExportFDXRequest):
-    """
-    Retourne le contenu FDX en JSON (pour Apps Script qui ne peut pas 
-    facilement gérer les fichiers binaires)
-    """
+    """Retourne le contenu FDX en JSON (pour Apps Script)"""
     try:
         fdx_content = generate_fdx(request.title, request.elements)
         return {
@@ -158,11 +169,10 @@ async def export_fdx_json(request: ExportFDXRequest):
 # TEXT-TO-SPEECH
 # ============================================
 
-# Prénoms communs pour deviner le genre
 FEMALE_NAMES = {
     "MARIE", "SOPHIE", "JULIE", "EMMA", "LÉA", "CHLOÉ", "CAMILLE", "SARAH",
-    "LAURA", "CLARA", "ALICE", "ANNA", "EVA", "LISA", "MARY", "JANE", "SARAH",
-    "EMMA", "OLIVIA", "AVA", "MIA", "EMILY", "ELLA", "LUCY", "GRACE"
+    "LAURA", "CLARA", "ALICE", "ANNA", "EVA", "LISA", "MARY", "JANE",
+    "OLIVIA", "AVA", "MIA", "EMILY", "ELLA", "LUCY", "GRACE"
 }
 
 MALE_NAMES = {
@@ -174,8 +184,7 @@ MALE_NAMES = {
 
 def guess_gender(name: str) -> str:
     """Devine le genre d'un personnage basé sur son nom"""
-    clean_name = name.upper().split()[0]  # Premier mot du nom
-    
+    clean_name = name.upper().split()[0]
     if clean_name in FEMALE_NAMES:
         return "female"
     elif clean_name in MALE_NAMES:
@@ -188,16 +197,8 @@ def get_voice_for_element(
     characters: Optional[dict] = None,
     last_character: Optional[str] = None
 ) -> dict:
-    """
-    Retourne les paramètres de voix pour un élément
+    """Retourne les paramètres de voix pour un élément"""
     
-    Pour Web Speech API:
-    - rate: vitesse (0.1 à 10, défaut 1)
-    - pitch: hauteur (0 à 2, défaut 1)
-    - voice: nom de la voix
-    """
-    
-    # Paramètres par défaut (voix narrateur)
     voice_params = {
         "rate": 1.0,
         "pitch": 1.0,
@@ -205,25 +206,21 @@ def get_voice_for_element(
     }
     
     if element.type == "SCENE_HEADING":
-        # Scene heading: voix plus lente, grave
         voice_params["rate"] = 0.9
         voice_params["pitch"] = 0.8
         voice_params["voice_type"] = "narrator"
-        voice_params["pause_after"] = 1000  # ms
+        voice_params["pause_after"] = 1000
         
     elif element.type == "ACTION":
-        # Action: voix normale
         voice_params["rate"] = 1.0
         voice_params["pitch"] = 1.0
         voice_params["voice_type"] = "narrator"
         voice_params["pause_after"] = 500
         
     elif element.type == "CHARACTER":
-        # Ne pas lire le nom du personnage, juste noter qui parle
         voice_params["skip"] = True
         
     elif element.type == "DIALOGUE":
-        # Dialogue: adapter la voix au personnage
         if last_character and characters:
             char_info = characters.get(last_character, {})
             gender = char_info.get("gender") or guess_gender(last_character)
@@ -238,11 +235,10 @@ def get_voice_for_element(
                 voice_params["pitch"] = 1.0
                 voice_params["voice_type"] = "neutral"
         
-        voice_params["rate"] = 1.1  # Dialogue légèrement plus rapide
+        voice_params["rate"] = 1.1
         voice_params["pause_after"] = 300
         
     elif element.type == "PARENTHETICAL":
-        # Parenthetical: voix plus douce, rapide
         voice_params["rate"] = 1.2
         voice_params["pitch"] = 1.1
         voice_params["volume"] = 0.7
@@ -250,7 +246,6 @@ def get_voice_for_element(
         voice_params["pause_after"] = 200
         
     elif element.type == "TRANSITION":
-        # Transition: voix grave, pause après
         voice_params["rate"] = 0.8
         voice_params["pitch"] = 0.7
         voice_params["voice_type"] = "narrator"
@@ -261,13 +256,8 @@ def get_voice_for_element(
 
 @app.post("/tts/prepare")
 async def prepare_tts(request: TTSRequestAdvanced):
-    """
-    Prépare les données pour la lecture vocale côté client (Web Speech API)
-    
-    Retourne une liste d'éléments avec les paramètres de voix pour chaque
-    """
+    """Prépare les données pour la lecture vocale côté client"""
     try:
-        # Construire le dictionnaire des personnages
         characters = {}
         if request.characters:
             for char in request.characters:
@@ -277,18 +267,15 @@ async def prepare_tts(request: TTSRequestAdvanced):
                     "voice_id": char.voice_id
                 }
         
-        # Préparer les éléments avec les paramètres de voix
         tts_elements = []
         last_character = None
         
         for el in request.elements:
             voice_params = get_voice_for_element(el, characters, last_character)
             
-            # Mettre à jour le dernier personnage
             if el.type == "CHARACTER":
                 last_character = el.text.upper().split("(")[0].strip()
             
-            # Ajouter l'élément avec ses paramètres
             tts_elements.append({
                 "type": el.type,
                 "text": el.text,
@@ -311,6 +298,195 @@ async def prepare_tts(request: TTSRequestAdvanced):
 
 
 # ============================================
+# SCENE BOARD AI
+# ============================================
+
+async def call_claude(prompt: str, system: str = None) -> str:
+    """Appelle l'API Claude"""
+    if not ANTHROPIC_API_KEY:
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured")
+    
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        messages = [{"role": "user", "content": prompt}]
+        
+        body = {
+            "model": "claude-sonnet-4-20250514",
+            "max_tokens": 4096,
+            "messages": messages
+        }
+        
+        if system:
+            body["system"] = system
+        
+        response = await client.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
+            },
+            json=body
+        )
+        
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail=response.text)
+        
+        data = response.json()
+        return data["content"][0]["text"]
+
+
+@app.post("/api/scene-board/analyze")
+async def analyze_scenes(request: SceneBoardRequest):
+    """
+    Analyse les scènes avec Claude AI
+    Retourne un résumé, les personnages, le ton pour chaque scène
+    """
+    try:
+        # Construire le prompt
+        scenes_text = ""
+        for scene in request.scenes:
+            scenes_text += f"\n\n--- SCENE {scene.id} ---\n{scene.heading}\n{scene.content}"
+        
+        lang = "French" if request.language == "fr" else "English"
+        
+        system_prompt = f"""You are a professional script analyst. Analyze screenplay scenes and provide structured insights.
+Always respond in {lang}.
+Return ONLY valid JSON, no markdown, no explanation."""
+
+        user_prompt = f"""Analyze these scenes from the screenplay "{request.title}":
+
+{scenes_text}
+
+For each scene, provide:
+1. A brief summary (1-2 sentences)
+2. Characters present (list)
+3. Emotional tone (1-2 words)
+4. Story function (setup/confrontation/resolution/transition)
+5. Time of day (from scene heading or content)
+
+Return as JSON array:
+[
+  {{
+    "id": 1,
+    "summary": "...",
+    "characters": ["..."],
+    "tone": "...",
+    "function": "...",
+    "time": "..."
+  }}
+]"""
+
+        result = await call_claude(user_prompt, system_prompt)
+        
+        # Parser le JSON
+        import json
+        # Nettoyer le résultat (enlever markdown si présent)
+        clean_result = result.strip()
+        if clean_result.startswith("```"):
+            clean_result = clean_result.split("\n", 1)[1]
+            clean_result = clean_result.rsplit("```", 1)[0]
+        
+        analysis = json.loads(clean_result)
+        
+        return {
+            "success": True,
+            "title": request.title,
+            "analysis": analysis
+        }
+        
+    except json.JSONDecodeError as e:
+        return {
+            "success": False,
+            "error": f"Failed to parse AI response: {str(e)}",
+            "raw_response": result if 'result' in dir() else None
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+@app.post("/api/scene-board/suggest")
+async def suggest_improvements(request: SceneBoardRequest):
+    """
+    Suggère des améliorations de structure
+    """
+    try:
+        scenes_text = ""
+        for scene in request.scenes:
+            scenes_text += f"\n--- SCENE {scene.id}: {scene.heading} ---\n"
+        
+        lang = "French" if request.language == "fr" else "English"
+        
+        system_prompt = f"""You are a professional screenwriting consultant. 
+Analyze screenplay structure and suggest improvements.
+Always respond in {lang}.
+Return ONLY valid JSON."""
+
+        user_prompt = f"""Review the scene order for "{request.title}":
+
+{scenes_text}
+
+Provide:
+1. Overall structure assessment (3-act structure, pacing)
+2. Suggested scene reordering (if any)
+3. Missing story beats
+4. Pacing issues
+
+Return as JSON:
+{{
+  "assessment": "...",
+  "suggested_order": [1, 2, 3, ...] or null if current order is good,
+  "missing_beats": ["..."],
+  "pacing_notes": "..."
+}}"""
+
+        result = await call_claude(user_prompt, system_prompt)
+        
+        import json
+        clean_result = result.strip()
+        if clean_result.startswith("```"):
+            clean_result = clean_result.split("\n", 1)[1]
+            clean_result = clean_result.rsplit("```", 1)[0]
+        
+        suggestions = json.loads(clean_result)
+        
+        return {
+            "success": True,
+            "suggestions": suggestions
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+# ============================================
+# SCENE BOARD PAGE
+# ============================================
+
+@app.get("/sceneboard", response_class=HTMLResponse)
+async def sceneboard_page():
+    """Sert la page Scene Board"""
+    html_path = os.path.join(os.path.dirname(__file__), "sceneboard.html")
+    if os.path.exists(html_path):
+        with open(html_path, "r", encoding="utf-8") as f:
+            return f.read()
+    else:
+        return """
+        <html>
+        <body>
+        <h1>Scene Board</h1>
+        <p>sceneboard.html not found. Please deploy the file.</p>
+        </body>
+        </html>
+        """
+
+
+# ============================================
 # HEALTH CHECK
 # ============================================
 
@@ -318,14 +494,18 @@ async def prepare_tts(request: TTSRequestAdvanced):
 async def root():
     return {
         "service": "Screenplay Editor API",
-        "version": "1.0.0",
-        "status": "running"
+        "version": "2.0.0",
+        "status": "running",
+        "features": ["fdx_export", "tts", "scene_board_ai"]
     }
 
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy"}
+    return {
+        "status": "healthy",
+        "anthropic_configured": ANTHROPIC_API_KEY is not None
+    }
 
 
 # ============================================
