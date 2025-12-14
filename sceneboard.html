@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scene Board — Screenplay Editor</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  <style>
+    :root {
+      --violet: #a78bfa;
+      --violet-dark: #8b5cf6;
+      --violet-light: #c4b5fd;
+      --bg: #fafafa;
+      --card: #ffffff;
+      --text: #1c1c1e;
+      --text-secondary: #636366;
+      --border: #e5e5ea;
+      --success: #34c759;
+      --warning: #ff9500;
+      --danger: #ff3b30;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1c1c1e;
+        --card: #2c2c2e;
+        --text: #ffffff;
+        --text-secondary: #8e8e93;
+        --border: #3a3a3c;
+      }
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .logo {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, var(--violet) 0%, var(--violet-light) 100%);
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      padding: 6px;
+    }
+
+    .logo-line {
+      height: 2px;
+      border-radius: 1px;
+      background: rgba(255, 255, 255, 0.5);
+    }
+    .logo-line:nth-child(1) { width: 30%; }
+    .logo-line:nth-child(2) { width: 70%; background: #fff; }
+    .logo-line:nth-child(3) { width: 70%; background: rgba(255, 255, 255, 0.4); }
+    .logo-line:nth-child(4) { width: 50%; background: rgba(255, 255, 255, 0.25); }
+
+    .header-title h1 {
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .header-title p {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: var(--violet);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: var(--violet-dark);
+    }
+
+    .btn-secondary {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--violet);
+      color: var(--violet);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Main Layout */
+    .main {
+      display: flex;
+      height: calc(100vh - 69px);
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 300px;
+      background: var(--card);
+      border-right: 1px solid var(--border);
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    .sidebar h2 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: var(--bg);
+      padding: 16px;
+      border-radius: 12px;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--violet);
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    .ai-panel {
+      background: linear-gradient(135deg, rgba(167, 139, 250, 0.1) 0%, rgba(196, 181, 253, 0.1) 100%);
+      border: 1px solid var(--violet-light);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+
+    .ai-panel h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ai-panel h3 i {
+      color: var(--violet);
+    }
+
+    .ai-suggestion {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .characters-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .character-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: var(--bg);
+      border-radius: 8px;
+    }
+
+    .character-name {
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .character-count {
+      font-size: 12px;
+      color: var(--text-secondary);
+      background: var(--card);
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    /* Board */
+    .board {
+      flex: 1;
+      padding: 24px;
+      overflow-y: auto;
+    }
+
+    .board-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    .view-toggle {
+      display: flex;
+      background: var(--card);
+      border-radius: 8px;
+      padding: 4px;
+      border: 1px solid var(--border);
+    }
+
+    .view-btn {
+      padding: 8px 16px;
+      border: none;
+      background: transparent;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--text-secondary);
+      transition: all 0.2s;
+    }
+
+    .view-btn.active {
+      background: var(--violet);
+      color: white;
+    }
+
+    /* Scene Cards */
+    .scenes-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+    }
+
+    .scenes-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .scene-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      cursor: grab;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .scene-card:hover {
+      border-color: var(--violet);
+      box-shadow: 0 4px 12px rgba(167, 139, 250, 0.15);
+    }
+
+    .scene-card.dragging {
+      opacity: 0.5;
+      transform: rotate(2deg);
+    }
+
+    .scene-card.drag-over {
+      border-color: var(--violet);
+      border-style: dashed;
+    }
+
+    .scene-number {
+      position: absolute;
+      top: -8px;
+      left: -8px;
+      width: 28px;
+      height: 28px;
+      background: var(--violet);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .scene-heading {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--violet);
+      margin-bottom: 8px;
+      padding-right: 30px;
+    }
+
+    .scene-summary {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      margin-bottom: 12px;
+    }
+
+    .scene-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .scene-tag {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      background: var(--bg);
+      color: var(--text-secondary);
+    }
+
+    .scene-tag.tone {
+      background: rgba(167, 139, 250, 0.15);
+      color: var(--violet);
+    }
+
+    .scene-tag.function {
+      background: rgba(52, 199, 89, 0.15);
+      color: var(--success);
+    }
+
+    .scene-actions {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      display: flex;
+      gap: 4px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .scene-card:hover .scene-actions {
+      opacity: 1;
+    }
+
+    .scene-action-btn {
+      width: 28px;
+      height: 28px;
+      border: none;
+      background: var(--bg);
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-secondary);
+      transition: all 0.2s;
+    }
+
+    .scene-action-btn:hover {
+      background: var(--violet);
+      color: white;
+    }
+
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+    }
+
+    .empty-state i {
+      font-size: 48px;
+      color: var(--border);
+      margin-bottom: 16px;
+    }
+
+    .empty-state h3 {
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+
+    .empty-state p {
+      color: var(--text-secondary);
+      font-size: 14px;
+      max-width: 400px;
+      margin: 0 auto 24px;
+    }
+
+    /* Loading */
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--violet);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      padding: 16px 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.3s;
+      z-index: 1000;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .toast.success {
+      border-left: 4px solid var(--success);
+    }
+
+    .toast.error {
+      border-left: 4px solid var(--danger);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .sidebar {
+        display: none;
+      }
+      
+      .scenes-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="header">
+    <div class="header-left">
+      <div class="logo">
+        <div class="logo-line"></div>
+        <div class="logo-line"></div>
+        <div class="logo-line"></div>
+        <div class="logo-line"></div>
+      </div>
+      <div class="header-title">
+        <h1>Scene Board</h1>
+        <p id="script-title">Loading...</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-secondary" onclick="refreshScenes()">
+        <i class="ti ti-refresh"></i>
+        <span data-i18n="refresh">Refresh</span>
+      </button>
+      <button class="btn btn-primary" onclick="analyzeWithAI()" id="btn-analyze">
+        <i class="ti ti-sparkles"></i>
+        <span data-i18n="analyze">Analyze with AI</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="main">
+    <aside class="sidebar">
+      <h2 data-i18n="overview">Overview</h2>
+      
+      <div class="stats">
+        <div class="stat-card">
+          <div class="stat-value" id="stat-scenes">0</div>
+          <div class="stat-label" data-i18n="scenes">Scenes</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-characters">0</div>
+          <div class="stat-label" data-i18n="characters">Characters</div>
+        </div>
+      </div>
+
+      <div class="ai-panel" id="ai-panel" style="display: none;">
+        <h3><i class="ti ti-sparkles"></i> <span data-i18n="ai-insights">AI Insights</span></h3>
+        <div class="ai-suggestion" id="ai-suggestion"></div>
+      </div>
+
+      <h2 data-i18n="characters">Characters</h2>
+      <div class="characters-list" id="characters-list">
+        <!-- Characters will be inserted here -->
+      </div>
+    </aside>
+
+    <section class="board">
+      <div class="board-header">
+        <div></div>
+        <div class="view-toggle">
+          <button class="view-btn active" data-view="grid" onclick="setView('grid')">
+            <i class="ti ti-layout-grid"></i>
+          </button>
+          <button class="view-btn" data-view="list" onclick="setView('list')">
+            <i class="ti ti-list"></i>
+          </button>
+        </div>
+      </div>
+
+      <div id="scenes-container" class="scenes-grid">
+        <div class="empty-state">
+          <i class="ti ti-movie"></i>
+          <h3 data-i18n="no-scenes">No scenes loaded</h3>
+          <p data-i18n="no-scenes-desc">Open a screenplay in Google Docs with Screenplay Editor to see your scenes here.</p>
+          <button class="btn btn-primary" onclick="loadDemoScenes()">
+            <i class="ti ti-player-play"></i>
+            <span data-i18n="load-demo">Load Demo</span>
+          </button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast">
+    <i class="ti ti-check"></i>
+    <span id="toast-message">Success</span>
+  </div>
+
+  <script>
+    // Configuration
+    const API_URL = 'https://screenplay-backend.onrender.com';
+    let scenes = [];
+    let analysis = [];
+    let currentView = 'grid';
+    let language = navigator.language.startsWith('fr') ? 'fr' : 'en';
+
+    // Translations
+    const i18n = {
+      en: {
+        'refresh': 'Refresh',
+        'analyze': 'Analyze with AI',
+        'overview': 'Overview',
+        'scenes': 'Scenes',
+        'characters': 'Characters',
+        'ai-insights': 'AI Insights',
+        'no-scenes': 'No scenes loaded',
+        'no-scenes-desc': 'Open a screenplay in Google Docs with Screenplay Editor to see your scenes here.',
+        'load-demo': 'Load Demo',
+        'analyzing': 'Analyzing...',
+        'analysis-complete': 'Analysis complete!',
+        'error': 'An error occurred'
+      },
+      fr: {
+        'refresh': 'Actualiser',
+        'analyze': 'Analyser avec IA',
+        'overview': 'Aperçu',
+        'scenes': 'Scènes',
+        'characters': 'Personnages',
+        'ai-insights': 'Analyse IA',
+        'no-scenes': 'Aucune scène chargée',
+        'no-scenes-desc': 'Ouvrez un scénario dans Google Docs avec Screenplay Editor pour voir vos scènes ici.',
+        'load-demo': 'Charger démo',
+        'analyzing': 'Analyse en cours...',
+        'analysis-complete': 'Analyse terminée !',
+        'error': 'Une erreur est survenue'
+      }
+    };
+
+    // Apply translations
+    function applyTranslations() {
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (i18n[language][key]) {
+          el.textContent = i18n[language][key];
+        }
+      });
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      applyTranslations();
+      
+      // Listen for messages from extension/add-on
+      window.addEventListener('message', handleMessage);
+      
+      // Check URL params for data
+      const params = new URLSearchParams(window.location.search);
+      const dataParam = params.get('data');
+      if (dataParam) {
+        try {
+          const data = JSON.parse(decodeURIComponent(dataParam));
+          loadScenes(data);
+        } catch (e) {
+          console.error('Failed to parse data param:', e);
+        }
+      }
+
+      // Request scenes from opener if available
+      if (window.opener) {
+        window.opener.postMessage({ type: 'SCENEBOARD_READY' }, '*');
+      }
+    });
+
+    // Handle messages
+    function handleMessage(event) {
+      const { type, data } = event.data || {};
+      
+      if (type === 'LOAD_SCENES') {
+        loadScenes(data);
+      } else if (type === 'UPDATE_SCENE') {
+        updateScene(data);
+      }
+    }
+
+    // Load scenes
+    function loadScenes(data) {
+      if (!data || !data.scenes) return;
+      
+      scenes = data.scenes;
+      document.getElementById('script-title').textContent = data.title || 'Untitled';
+      
+      renderScenes();
+      updateStats();
+    }
+
+    // Render scenes
+    function renderScenes() {
+      const container = document.getElementById('scenes-container');
+      
+      if (scenes.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <i class="ti ti-movie"></i>
+            <h3 data-i18n="no-scenes">${i18n[language]['no-scenes']}</h3>
+            <p data-i18n="no-scenes-desc">${i18n[language]['no-scenes-desc']}</p>
+            <button class="btn btn-primary" onclick="loadDemoScenes()">
+              <i class="ti ti-player-play"></i>
+              <span>${i18n[language]['load-demo']}</span>
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      container.className = currentView === 'grid' ? 'scenes-grid' : 'scenes-list';
+      
+      container.innerHTML = scenes.map((scene, index) => {
+        const sceneAnalysis = analysis.find(a => a.id === scene.id) || {};
+        
+        return `
+          <div class="scene-card" 
+               draggable="true" 
+               data-id="${scene.id}"
+               ondragstart="handleDragStart(event)"
+               ondragend="handleDragEnd(event)"
+               ondragover="handleDragOver(event)"
+               ondrop="handleDrop(event)">
+            <span class="scene-number">${index + 1}</span>
+            <div class="scene-heading">${escapeHtml(scene.heading)}</div>
+            ${sceneAnalysis.summary ? `<div class="scene-summary">${escapeHtml(sceneAnalysis.summary)}</div>` : ''}
+            <div class="scene-meta">
+              ${sceneAnalysis.tone ? `<span class="scene-tag tone">${escapeHtml(sceneAnalysis.tone)}</span>` : ''}
+              ${sceneAnalysis.function ? `<span class="scene-tag function">${escapeHtml(sceneAnalysis.function)}</span>` : ''}
+              ${sceneAnalysis.time ? `<span class="scene-tag">${escapeHtml(sceneAnalysis.time)}</span>` : ''}
+              ${(sceneAnalysis.characters || []).slice(0, 3).map(c => `<span class="scene-tag">${escapeHtml(c)}</span>`).join('')}
+            </div>
+            <div class="scene-actions">
+              <button class="scene-action-btn" onclick="goToScene(${scene.id})" title="Go to scene">
+                <i class="ti ti-arrow-right"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Update stats
+    function updateStats() {
+      document.getElementById('stat-scenes').textContent = scenes.length;
+      
+      // Count unique characters
+      const characters = {};
+      scenes.forEach(scene => {
+        const matches = scene.content.match(/^[A-Z][A-Z\s]+$/gm) || [];
+        matches.forEach(char => {
+          const name = char.trim();
+          if (name.length > 1 && name.length < 30) {
+            characters[name] = (characters[name] || 0) + 1;
+          }
+        });
+      });
+      
+      // Also add from analysis
+      analysis.forEach(a => {
+        (a.characters || []).forEach(char => {
+          characters[char] = (characters[char] || 0) + 1;
+        });
+      });
+
+      const charCount = Object.keys(characters).length;
+      document.getElementById('stat-characters').textContent = charCount;
+
+      // Update characters list
+      const charList = document.getElementById('characters-list');
+      const sortedChars = Object.entries(characters)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
+      
+      charList.innerHTML = sortedChars.map(([name, count]) => `
+        <div class="character-item">
+          <span class="character-name">${escapeHtml(name)}</span>
+          <span class="character-count">${count} scenes</span>
+        </div>
+      `).join('') || '<p style="color: var(--text-secondary); font-size: 13px;">No characters found</p>';
+    }
+
+    // Analyze with AI
+    async function analyzeWithAI() {
+      if (scenes.length === 0) {
+        showToast(i18n[language]['error'], 'error');
+        return;
+      }
+
+      const btn = document.getElementById('btn-analyze');
+      btn.disabled = true;
+      btn.innerHTML = `<span class="spinner" style="width: 16px; height: 16px; border-width: 2px;"></span> ${i18n[language]['analyzing']}`;
+
+      try {
+        const response = await fetch(`${API_URL}/api/scene-board/analyze`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: document.getElementById('script-title').textContent,
+            scenes: scenes,
+            language: language
+          })
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+          analysis = result.analysis;
+          renderScenes();
+          updateStats();
+          
+          // Show AI panel with suggestions
+          const aiPanel = document.getElementById('ai-panel');
+          aiPanel.style.display = 'block';
+          
+          // Get structure suggestions
+          const suggestResponse = await fetch(`${API_URL}/api/scene-board/suggest`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: document.getElementById('script-title').textContent,
+              scenes: scenes,
+              language: language
+            })
+          });
+          
+          const suggestions = await suggestResponse.json();
+          if (suggestions.success) {
+            document.getElementById('ai-suggestion').textContent = suggestions.suggestions.assessment || '';
+          }
+          
+          showToast(i18n[language]['analysis-complete'], 'success');
+        } else {
+          throw new Error(result.error);
+        }
+      } catch (error) {
+        console.error('Analysis error:', error);
+        showToast(i18n[language]['error'] + ': ' + error.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i class="ti ti-sparkles"></i> ${i18n[language]['analyze']}`;
+      }
+    }
+
+    // Drag and drop
+    let draggedElement = null;
+
+    function handleDragStart(e) {
+      draggedElement = e.target.closest('.scene-card');
+      draggedElement.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    }
+
+    function handleDragEnd(e) {
+      if (draggedElement) {
+        draggedElement.classList.remove('dragging');
+        draggedElement = null;
+      }
+      document.querySelectorAll('.scene-card').forEach(card => {
+        card.classList.remove('drag-over');
+      });
+    }
+
+    function handleDragOver(e) {
+      e.preventDefault();
+      const card = e.target.closest('.scene-card');
+      if (card && card !== draggedElement) {
+        card.classList.add('drag-over');
+      }
+    }
+
+    function handleDrop(e) {
+      e.preventDefault();
+      const targetCard = e.target.closest('.scene-card');
+      if (!targetCard || targetCard === draggedElement) return;
+
+      const draggedId = parseInt(draggedElement.dataset.id);
+      const targetId = parseInt(targetCard.dataset.id);
+
+      const draggedIndex = scenes.findIndex(s => s.id === draggedId);
+      const targetIndex = scenes.findIndex(s => s.id === targetId);
+
+      // Reorder
+      const [removed] = scenes.splice(draggedIndex, 1);
+      scenes.splice(targetIndex, 0, removed);
+
+      renderScenes();
+      
+      // Notify opener of new order
+      if (window.opener) {
+        window.opener.postMessage({
+          type: 'SCENES_REORDERED',
+          order: scenes.map(s => s.id)
+        }, '*');
+      }
+    }
+
+    // View toggle
+    function setView(view) {
+      currentView = view;
+      document.querySelectorAll('.view-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.view === view);
+      });
+      renderScenes();
+    }
+
+    // Go to scene
+    function goToScene(id) {
+      if (window.opener) {
+        window.opener.postMessage({
+          type: 'GO_TO_SCENE',
+          sceneId: id
+        }, '*');
+      }
+    }
+
+    // Refresh
+    function refreshScenes() {
+      if (window.opener) {
+        window.opener.postMessage({ type: 'REQUEST_SCENES' }, '*');
+      }
+    }
+
+    // Demo scenes
+    function loadDemoScenes() {
+      loadScenes({
+        title: 'Demo Screenplay',
+        scenes: [
+          { id: 1, heading: 'INT. COFFEE SHOP - DAY', content: 'SARAH sits alone at a table, staring at her phone.\n\nSARAH\nHe\'s not coming, is he?\n\nShe sighs and takes a sip of her cold coffee.' },
+          { id: 2, heading: 'EXT. CITY STREET - CONTINUOUS', content: 'JAMES runs through the crowded street, phone in hand.\n\nJAMES\n(into phone)\nI\'m almost there! Don\'t leave!\n\nHe dodges pedestrians, nearly colliding with a cyclist.' },
+          { id: 3, heading: 'INT. COFFEE SHOP - CONTINUOUS', content: 'Sarah gathers her things. The door BURSTS open. James stands there, breathless.\n\nJAMES\nI made it.\n\nSARAH\n(smiling)\nYou\'re twenty minutes late.\n\nJAMES\nBut I\'m here.' },
+          { id: 4, heading: 'EXT. PARK - LATER', content: 'Sarah and James walk side by side through a sunny park.\n\nSARAH\nSo what was so important?\n\nJames stops. Reaches into his pocket.' },
+          { id: 5, heading: 'INT. SARAH\'S APARTMENT - NIGHT', content: 'Sarah enters, still in shock. She looks at the ring on her finger.\n\nSARAH\n(to herself)\nThis is really happening.' }
+        ]
+      });
+    }
+
+    // Utilities
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById('toast');
+      const icon = toast.querySelector('i');
+      
+      toast.className = `toast ${type}`;
+      icon.className = type === 'success' ? 'ti ti-check' : 'ti ti-x';
+      document.getElementById('toast-message').textContent = message;
+      
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+  </script>
+
+</body>
+</html>
